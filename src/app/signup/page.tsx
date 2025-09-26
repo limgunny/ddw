@@ -19,6 +19,7 @@ export default function SignUp() {
     setMessage('')
 
     try {
+      console.log('API URL:', apiEndpoints.signup)
       const response = await fetch(apiEndpoints.signup, {
         method: 'POST',
         headers: {
@@ -27,7 +28,9 @@ export default function SignUp() {
         body: JSON.stringify({ username, password }),
       })
 
+      console.log('Response status:', response.status)
       const data = await response.json()
+      console.log('Response data:', data)
 
       if (response.ok) {
         setMessage('회원가입 성공! 2초 후 로그인 페이지로 이동합니다.')
@@ -35,7 +38,8 @@ export default function SignUp() {
       } else {
         setMessage(`오류: ${data.error}`)
       }
-    } catch {
+    } catch (error) {
+      console.error('Signup error:', error)
       setMessage('서버와 통신 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)

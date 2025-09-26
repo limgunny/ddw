@@ -21,6 +21,7 @@ export default function Login() {
     setMessage('')
 
     try {
+      console.log('API URL:', apiEndpoints.login)
       const response = await fetch(apiEndpoints.login, {
         method: 'POST',
         headers: {
@@ -29,7 +30,9 @@ export default function Login() {
         body: JSON.stringify({ username, password }),
       })
 
+      console.log('Response status:', response.status)
       const data = await response.json()
+      console.log('Response data:', data)
 
       if (response.ok) {
         login(data.access_token)
@@ -37,7 +40,8 @@ export default function Login() {
       } else {
         setMessage(`오류: ${data.error}`)
       }
-    } catch {
+    } catch (error) {
+      console.error('Login error:', error)
       setMessage('서버와 통신 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
