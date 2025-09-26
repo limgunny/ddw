@@ -1,6 +1,21 @@
 // API 설정 유틸리티
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'https://ddw-backend.onrender.com'
+export const API_BASE_URL = (() => {
+  // 배포 환경에서는 환경변수 사용
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL
+  }
+
+  // 로컬 개발 환경에서는 배포된 서버 사용
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname === 'localhost'
+  ) {
+    return 'https://ddw-backend.onrender.com'
+  }
+
+  // 기본값 (배포 환경)
+  return 'https://ddw-backend.onrender.com'
+})()
 
 export const apiEndpoints = {
   videos: `${API_BASE_URL}/api/videos`,
