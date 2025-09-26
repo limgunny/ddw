@@ -1,6 +1,6 @@
 // API 설정 유틸리티
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+  process.env.NEXT_PUBLIC_API_URL || 'https://ddw-backend.onrender.com'
 
 export const apiEndpoints = {
   videos: `${API_BASE_URL}/api/videos`,
@@ -26,6 +26,3 @@ export const apiEndpoints = {
   },
   outputs: (filename: string) => `${API_BASE_URL}/outputs/${filename}`,
 }
-
-
-

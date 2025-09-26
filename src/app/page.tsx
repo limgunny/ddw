@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import CtaButton from '@/components/CtaButton'
-import { useAuth } from '@/contexts/AuthContext'
+import { apiEndpoints } from '@/lib/api'
 
 type Video = {
   id: number
@@ -44,7 +44,7 @@ export default function HomePage() {
     const load = async () => {
       try {
         setLoading(true)
-        const res = await fetch('http://localhost:5000/api/videos')
+        const res = await fetch(apiEndpoints.videos)
         const data: Video[] = await res.json()
         setVideos(data)
       } catch {
@@ -134,7 +134,7 @@ export default function HomePage() {
                     try {
                       // 조회수 증가 API 호출
                       const viewResponse = await fetch(
-                        `http://localhost:5000/api/videos/${v.id}/view`,
+                        apiEndpoints.video.view(v.id),
                         {
                           method: 'POST',
                         }
@@ -173,7 +173,7 @@ export default function HomePage() {
 
                     // 비디오 재생
                     window.open(
-                      `http://localhost:5000/outputs/${v.playback_filename}`,
+                      apiEndpoints.outputs(v.playback_filename),
                       '_blank'
                     )
                   }}
