@@ -41,8 +41,8 @@ export default function AdminDashboard() {
         }
         const data: Video[] = await response.json()
         setVideos(data)
-      } catch (err: any) {
-        setError(err.message)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred')
       } finally {
         setLoading(false)
       }

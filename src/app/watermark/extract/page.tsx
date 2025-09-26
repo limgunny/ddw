@@ -10,7 +10,7 @@ export default function WatermarkExtract() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [watermark, setWatermark] = useState<string | null>(null)
-  const { isAuthenticated, role } = useAuth()
+  const { isAuthenticated } = useAuth()
 
   const resetState = () => {
     setVideoFile(null)
@@ -45,7 +45,7 @@ export default function WatermarkExtract() {
       } else {
         setMessage(`오류: ${data.error || '추출에 실패했습니다.'}`)
       }
-    } catch (error) {
+    } catch {
       setMessage('서버와 통신 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)

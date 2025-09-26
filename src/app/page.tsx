@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import CtaButton from '@/components/CtaButton'
 import { useAuth } from '@/contexts/AuthContext'
@@ -48,7 +47,7 @@ export default function HomePage() {
         const res = await fetch('http://localhost:5000/api/videos')
         const data: Video[] = await res.json()
         setVideos(data)
-      } catch (e) {
+      } catch {
         setError('영상을 불러오지 못했습니다.')
       } finally {
         setLoading(false)
@@ -247,14 +246,14 @@ export default function HomePage() {
                             if (!res.ok) {
                               const data = await res
                                 .json()
-                                .catch(() => ({} as any))
+                                .catch(() => ({} as Record<string, unknown>))
                               alert(data.error || '삭제에 실패했습니다.')
                               return
                             }
                             setVideos((prev) =>
                               prev.filter((it) => it.id !== v.id)
                             )
-                          } catch (e) {
+                          } catch {
                             alert('삭제 중 오류가 발생했습니다.')
                           }
                         }}

@@ -109,7 +109,7 @@ export default function ProfilePage() {
       } else {
         setDeleteMessage(`오류: ${data.error || data.msg || '알 수 없는 오류'}`)
       }
-    } catch (error) {
+    } catch {
       setDeleteMessage('서버와 통신 중 오류가 발생했습니다.')
     } finally {
       setDeleteLoading(false)

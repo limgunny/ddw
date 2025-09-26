@@ -35,7 +35,7 @@ export default function SignUp() {
       } else {
         setMessage(`오류: ${data.error}`)
       }
-    } catch (error) {
+    } catch {
       setMessage('서버와 통신 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)

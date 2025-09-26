@@ -59,9 +59,11 @@ export default function AdminDashboard() {
 
       const data = await response.json()
       alert(data.message || '비디오가 성공적으로 삭제되었습니다.')
-    } catch (err: any) {
-      alert(`오류: ${err.message}`)
-      setError(err.message) // 에러 상태에도 기록
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'An error occurred'
+      alert(`오류: ${errorMessage}`)
+      setError(errorMessage) // 에러 상태에도 기록
     }
   }
 
@@ -97,8 +99,10 @@ export default function AdminDashboard() {
       setVideos((currentVideos) =>
         currentVideos.filter((video) => video.user.username !== username)
       )
-    } catch (err: any) {
-      alert(`오류: ${err.message}`)
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'An error occurred'
+      alert(`오류: ${errorMessage}`)
     }
   }
 
@@ -132,8 +136,10 @@ export default function AdminDashboard() {
 
         setVideos(videosData)
         setUsers(usersData)
-      } catch (err: any) {
-        setError(err.message)
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : 'An error occurred'
+        setError(errorMessage)
       } finally {
         setLoading(false)
       }

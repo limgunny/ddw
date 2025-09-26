@@ -132,8 +132,8 @@ export default function AboutPage() {
                 </div>
                 <h3 className="text-xl font-bold mb-2">유출자 추적</h3>
                 <p className="text-gray-600">
-                  외부에 유출된 영상을 발견하면, '유출자 추적' 페이지에
-                  업로드하여 누가 유출했는지 즉시 확인하세요.
+                  외부에 유출된 영상을 발견하면, &apos;유출자 추적&apos;
+                  페이지에 업로드하여 누가 유출했는지 즉시 확인하세요.
                 </p>
               </div>
             </div>
