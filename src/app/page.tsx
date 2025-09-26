@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import CtaButton from '@/components/CtaButton'
 import { apiEndpoints } from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 
 type Video = {
   id: number
@@ -183,7 +184,7 @@ export default function HomePage() {
                     {v.thumbnail_filename ? (
                       // 로컬 썸네일 사용. Cloudinary를 쓰는 경우엔 URL로 대체 가능
                       <img
-                        src={`http://localhost:5000/outputs/${v.thumbnail_filename}`}
+                        src={apiEndpoints.outputs(v.thumbnail_filename)}
                         alt={v.original_filename}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
@@ -237,7 +238,7 @@ export default function HomePage() {
                           if (!confirmDel) return
                           try {
                             const res = await fetch(
-                              `http://localhost:5000/api/videos/${v.id}`,
+                              apiEndpoints.video.delete(v.id),
                               {
                                 method: 'DELETE',
                                 headers: { Authorization: `Bearer ${token}` },
