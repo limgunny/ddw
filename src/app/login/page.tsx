@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import DDWLogo from '@/components/DDWLogo'
-import { apiEndpoints, apiUtils } from '@/lib/api'
+import { apiEndpoints } from '@/lib/api'
 
 export default function Login() {
   const [username, setUsername] = useState('')
@@ -21,15 +21,13 @@ export default function Login() {
     setMessage('')
 
     try {
-      const response = await apiUtils.fetchWithTimeout(
-        apiEndpoints.login,
-        {
-          method: 'POST',
-          headers: apiUtils.getHeaders(),
-          body: JSON.stringify({ username, password }),
+      const response = await fetch(apiEndpoints.login, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        15000 // 15초 타임아웃
-      )
+        body: JSON.stringify({ username, password }),
+      })
 
       const data = await response.json()
 

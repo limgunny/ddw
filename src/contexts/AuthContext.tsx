@@ -9,7 +9,7 @@ import React, {
   useCallback,
 } from 'react'
 import { jwtDecode } from 'jwt-decode'
-import { apiEndpoints, apiUtils } from '@/lib/api'
+import { apiEndpoints } from '@/lib/api'
 
 interface AuthContextType {
   token: string | null
@@ -73,17 +73,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      const response = await apiUtils.fetchWithTimeout(
-        apiEndpoints.refresh,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${refreshToken}`,
-          },
+      const response = await fetch(apiEndpoints.refresh, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${refreshToken}`,
         },
-        10000
-      )
+      })
 
       if (response.ok) {
         const data = await response.json()
