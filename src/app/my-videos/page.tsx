@@ -1,9 +1,9 @@
 'use client'
 
 import { useAuth } from '@/contexts/AuthContext'
-import { apiEndpoints } from '@/lib/api'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { apiEndpoints } from '@/lib/api'
 
 // 백엔드에서 받아올 비디오 데이터의 타입을 정의합니다.
 interface Video {
@@ -52,7 +52,7 @@ export default function MyVideosPage() {
       try {
         setLoading(true)
         setError(null)
-        // 백엔드에 '내 비디오 목록'을 요청하는 API 엔드포인트입니다. (백엔드 구현 필요)
+        // 백엔드에 '내 비디오 목록'을 요청하는 API 엔드포인트입니다.
         const response = await fetch(apiEndpoints.myVideos, {
           headers: {
             Authorization: `Bearer ${token}`,

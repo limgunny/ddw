@@ -7,6 +7,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import HeaderNav from '@/components/HeaderNav'
 import DDWLogo from '@/components/DDWLogo'
 import SplashScreen from '@/components/SplashScreen'
+import TokenExpiryWarning from '@/components/TokenExpiryWarning'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -47,6 +48,9 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Main Content */}
             <main className="pt-16 flex-grow">{children}</main>
+
+            {/* Token Expiry Warning */}
+            <TokenExpiryWarning />
 
             {/* Footer */}
             <footer className="bg-white border-t border-gray-200">

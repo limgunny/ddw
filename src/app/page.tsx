@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, memo, useCallback } from 'react'
 import CtaButton from '@/components/CtaButton'
 import { apiEndpoints } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -16,10 +16,91 @@ type Video = {
   user: { id: number; username: string }
 }
 
+// 메모이제이션된 비디오 카드 컴포넌트
+const VideoCard = memo(
+  ({
+    video,
+    isAuthenticated,
+    userId,
+    token,
+    onVideoClick,
+    onVideoDelete,
+  }: {
+    video: Video
+    isAuthenticated: boolean
+    userId: number | null
+    token: string | null
+    onVideoClick: (video: Video) => void
+    onVideoDelete: (videoId: number) => void
+  }) => (
+    <div className="group rounded-2xl overflow-hidden bg-white shadow ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-xl">
+      <button onClick={() => onVideoClick(video)} className="w-full text-left">
+        <div className="relative aspect-video bg-gray-200 overflow-hidden">
+          {video.thumbnail_filename ? (
+            <img
+              src={apiEndpoints.outputs(video.thumbnail_filename)}
+              alt={video.original_filename}
+              loading="lazy"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+              썸네일 없음
+            </div>
+          )}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <svg
+              className="w-12 h-12 text-white drop-shadow"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </div>
+        </div>
+      </button>
+      <div className="p-4">
+        <div
+          className="font-semibold text-gray-900 line-clamp-2 min-h-[2.5rem]"
+          title={video.title || video.original_filename}
+        >
+          {video.title || video.original_filename}
+        </div>
+        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center justify-center px-4 py-1 rounded-full bg-purple-100 text-purple-700 text-[11px] font-semibold max-w-[80%] whitespace-nowrap text-center">
+              {video.user.username}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span>{video.views?.toLocaleString()}회 시청</span>
+            <span>
+              · {new Date(video.upload_timestamp).toLocaleDateString('ko-KR')}
+            </span>
+          </div>
+        </div>
+        {isAuthenticated && userId === video.user.id && (
+          <div className="mt-3 flex justify-end">
+            <button
+              onClick={() => onVideoDelete(video.id)}
+              className="px-3 py-1 text-xs rounded-full bg-red-50 text-red-600 hover:bg-red-100"
+            >
+              삭제
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+)
+
 export default function HomePage() {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
   const { isAuthenticated, userId, token } = useAuth()
 
   // 로컬 스토리지의 오래된 조회 기록 정리 (24시간 이상 된 기록 삭제)
@@ -38,23 +119,116 @@ export default function HomePage() {
     }
   }
 
+  // 비디오 로드 함수 (페이지네이션 지원)
+  const loadVideos = async (pageNum: number = 1, append: boolean = false) => {
+    try {
+      if (!append) setLoading(true)
+      setError(null)
+
+      const res = await fetch(
+        `${apiEndpoints.videos}?page=${pageNum}&per_page=12`
+      )
+      const data: Video[] = await res.json()
+
+      if (append) {
+        setVideos((prev) => [...prev, ...data])
+      } else {
+        setVideos(data)
+      }
+
+      // 더 이상 로드할 데이터가 없는지 확인
+      setHasMore(data.length === 12)
+    } catch {
+      setError('영상을 불러오지 못했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 더 많은 비디오 로드
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      const nextPage = page + 1
+      setPage(nextPage)
+      loadVideos(nextPage, true)
+    }
+  }, [loading, hasMore, page])
+
+  // 비디오 클릭 핸들러
+  const handleVideoClick = useCallback(async (video: Video) => {
+    // 로컬 스토리지에서 중복 조회 방지
+    const viewedKey = `viewed_video_${video.id}`
+    const hasViewed = localStorage.getItem(viewedKey)
+
+    try {
+      // 조회수 증가 API 호출
+      const viewResponse = await fetch(apiEndpoints.video.view(video.id), {
+        method: 'POST',
+      })
+
+      if (viewResponse.ok) {
+        // API 응답에서 실제 조회수 받아서 UI 업데이트
+        const viewData = await viewResponse.json()
+        setVideos((prev) =>
+          prev.map((it) =>
+            it.id === video.id ? { ...it, views: viewData.views } : it
+          )
+        )
+
+        // 로컬 스토리지에 조회 기록 저장 (24시간 유지)
+        if (!viewData.already_viewed && !hasViewed) {
+          localStorage.setItem(viewedKey, Date.now().toString())
+        }
+      } else {
+        // API 실패 시 개발 환경에서만 로그 표시
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('조회수 증가 실패:', await viewResponse.text())
+        }
+      }
+    } catch (error) {
+      // 네트워크 오류 등으로 실패해도 재생은 계속 진행 (개발 환경에서만 로그 표시)
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('조회수 증가 중 오류:', error)
+      }
+    }
+
+    // 비디오 재생
+    window.open(apiEndpoints.outputs(video.playback_filename), '_blank')
+  }, [])
+
+  // 비디오 삭제 핸들러
+  const handleVideoDelete = useCallback(
+    async (videoId: number) => {
+      if (!token) return
+      const confirmDel = window.confirm('이 비디오를 삭제하시겠습니까?')
+      if (!confirmDel) return
+
+      try {
+        const res = await fetch(apiEndpoints.video.delete(videoId), {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) {
+          const data = await res
+            .json()
+            .catch(() => ({} as Record<string, unknown>))
+          alert(data.error || '삭제에 실패했습니다.')
+          return
+        }
+        setVideos((prev) => prev.filter((it) => it.id !== videoId))
+      } catch {
+        alert('삭제 중 오류가 발생했습니다.')
+      }
+    },
+    [token]
+  )
+
   useEffect(() => {
     // 페이지 로드 시 오래된 조회 기록 정리
     cleanupOldViewRecords()
 
-    const load = async () => {
-      try {
-        setLoading(true)
-        const res = await fetch(apiEndpoints.videos)
-        const data: Video[] = await res.json()
-        setVideos(data)
-      } catch {
-        setError('영상을 불러오지 못했습니다.')
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
+    // 초기 비디오 로드
+    loadVideos(1, false)
   }, [])
 
   return (
@@ -122,151 +296,29 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {videos.map((v) => (
-              <div
+              <VideoCard
                 key={v.id}
-                className="group rounded-2xl overflow-hidden bg-white shadow ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-xl"
-              >
-                <button
-                  onClick={async () => {
-                    // 로컬 스토리지에서 중복 조회 방지
-                    const viewedKey = `viewed_video_${v.id}`
-                    const hasViewed = localStorage.getItem(viewedKey)
-
-                    try {
-                      // 조회수 증가 API 호출
-                      const viewResponse = await fetch(
-                        apiEndpoints.video.view(v.id),
-                        {
-                          method: 'POST',
-                        }
-                      )
-
-                      if (viewResponse.ok) {
-                        // API 응답에서 실제 조회수 받아서 UI 업데이트
-                        const viewData = await viewResponse.json()
-                        setVideos((prev) =>
-                          prev.map((it) =>
-                            it.id === v.id
-                              ? { ...it, views: viewData.views }
-                              : it
-                          )
-                        )
-
-                        // 로컬 스토리지에 조회 기록 저장 (24시간 유지)
-                        if (!viewData.already_viewed && !hasViewed) {
-                          localStorage.setItem(viewedKey, Date.now().toString())
-                        }
-                      } else {
-                        // API 실패 시 개발 환경에서만 로그 표시
-                        if (process.env.NODE_ENV === 'development') {
-                          console.warn(
-                            '조회수 증가 실패:',
-                            await viewResponse.text()
-                          )
-                        }
-                      }
-                    } catch (error) {
-                      // 네트워크 오류 등으로 실패해도 재생은 계속 진행 (개발 환경에서만 로그 표시)
-                      if (process.env.NODE_ENV === 'development') {
-                        console.warn('조회수 증가 중 오류:', error)
-                      }
-                    }
-
-                    // 비디오 재생
-                    window.open(
-                      apiEndpoints.outputs(v.playback_filename),
-                      '_blank'
-                    )
-                  }}
-                  className="w-full text-left"
-                >
-                  <div className="relative aspect-video bg-gray-200 overflow-hidden">
-                    {v.thumbnail_filename ? (
-                      // 로컬 썸네일 사용. Cloudinary를 쓰는 경우엔 URL로 대체 가능
-                      <img
-                        src={apiEndpoints.outputs(v.thumbnail_filename)}
-                        alt={v.original_filename}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
-                        썸네일 없음
-                      </div>
-                    )}
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <svg
-                        className="w-12 h-12 text-white drop-shadow"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                    </div>
-                  </div>
-                </button>
-                <div className="p-4">
-                  <div
-                    className="font-semibold text-gray-900 line-clamp-2 min-h-[2.5rem]"
-                    title={v.title || v.original_filename}
-                  >
-                    {v.title || v.original_filename}
-                  </div>
-                  <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-                    <div className="flex items-center gap-2">
-                      <div className="inline-flex items-center justify-center px-4 py-1 rounded-full bg-purple-100 text-purple-700 text-[11px] font-semibold max-w-[80%] whitespace-nowrap text-center">
-                        {v.user.username}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span>{v.views?.toLocaleString()}회 시청</span>
-                      <span>
-                        ·{' '}
-                        {new Date(v.upload_timestamp).toLocaleDateString(
-                          'ko-KR'
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                  {isAuthenticated && userId === v.user.id && (
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        onClick={async () => {
-                          if (!token) return
-                          const confirmDel =
-                            window.confirm('이 비디오를 삭제하시겠습니까?')
-                          if (!confirmDel) return
-                          try {
-                            const res = await fetch(
-                              apiEndpoints.video.delete(v.id),
-                              {
-                                method: 'DELETE',
-                                headers: { Authorization: `Bearer ${token}` },
-                              }
-                            )
-                            if (!res.ok) {
-                              const data = await res
-                                .json()
-                                .catch(() => ({} as Record<string, unknown>))
-                              alert(data.error || '삭제에 실패했습니다.')
-                              return
-                            }
-                            setVideos((prev) =>
-                              prev.filter((it) => it.id !== v.id)
-                            )
-                          } catch {
-                            alert('삭제 중 오류가 발생했습니다.')
-                          }
-                        }}
-                        className="px-3 py-1 text-xs rounded-full bg-red-50 text-red-600 hover:bg-red-100"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+                video={v}
+                isAuthenticated={isAuthenticated}
+                userId={userId}
+                token={token}
+                onVideoClick={handleVideoClick}
+                onVideoDelete={handleVideoDelete}
+              />
             ))}
+          </div>
+        )}
+
+        {/* 더 보기 버튼 */}
+        {videos.length > 0 && hasMore && (
+          <div className="mt-8 text-center">
+            <button
+              onClick={loadMore}
+              disabled={loading}
+              className="px-6 py-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 disabled:bg-purple-400 transition-colors"
+            >
+              {loading ? '로딩 중...' : '더 많은 영상 보기'}
+            </button>
           </div>
         )}
       </div>

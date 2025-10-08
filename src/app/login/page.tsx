@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import DDWLogo from '@/components/DDWLogo'
-import { apiEndpoints } from '@/lib/api'
+import { apiEndpoints, apiUtils } from '@/lib/api'
 
 export default function Login() {
   const [username, setUsername] = useState('')
@@ -21,21 +21,20 @@ export default function Login() {
     setMessage('')
 
     try {
-      console.log('API URL:', apiEndpoints.login)
-      const response = await fetch(apiEndpoints.login, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await apiUtils.fetchWithTimeout(
+        apiEndpoints.login,
+        {
+          method: 'POST',
+          headers: apiUtils.getHeaders(),
+          body: JSON.stringify({ username, password }),
         },
-        body: JSON.stringify({ username, password }),
-      })
+        15000 // 15초 타임아웃
+      )
 
-      console.log('Response status:', response.status)
       const data = await response.json()
-      console.log('Response data:', data)
 
       if (response.ok) {
-        login(data.access_token)
+        login(data.access_token, data.refresh_token)
         router.push('/') // 로그인 후 메인 페이지로 이동
       } else {
         setMessage(`오류: ${data.error}`)

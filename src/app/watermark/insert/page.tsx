@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { apiEndpoints } from '@/lib/api'
+import { apiEndpoints, apiUtils } from '@/lib/api'
 
 // New SVG Icons
 const UploadIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -63,6 +63,15 @@ const LoadingSpinner = () => (
   </svg>
 )
 
+const ProgressBar = ({ progress }: { progress: number }) => (
+  <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+    <div
+      className="bg-gradient-to-r from-purple-500 to-indigo-500 h-3 rounded-full transition-all duration-500 ease-out"
+      style={{ width: `${progress}%` }}
+    />
+  </div>
+)
+
 export default function WatermarkInsert() {
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
@@ -70,13 +79,70 @@ export default function WatermarkInsert() {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null)
   const [masterUrl, setMasterUrl] = useState<string | null>(null)
   const [title, setTitle] = useState<string>('')
-  const { token, isAuthenticated } = useAuth()
+  const [taskId, setTaskId] = useState<string | null>(null)
+  const [progress, setProgress] = useState(0)
+  const [processingStatus, setProcessingStatus] = useState<
+    'idle' | 'processing' | 'completed' | 'failed'
+  >('idle')
+  const { token, refreshToken, refreshAccessToken, isAuthenticated } = useAuth()
 
   const resetState = () => {
     setMessage('')
     setPlaybackUrl(null)
     setMasterUrl(null)
     setVideoFile(null)
+    setTaskId(null)
+    setProgress(0)
+    setProcessingStatus('idle')
+  }
+
+  // 작업 상태 폴링 함수
+  const pollTaskStatus = async (taskId: string) => {
+    try {
+      const response = await apiUtils.fetchWithAuth(
+        apiEndpoints.embedStatus(taskId),
+        { method: 'GET' },
+        token,
+        refreshToken,
+        refreshAccessToken
+      )
+
+      if (!response.ok) {
+        throw new Error('작업 상태 조회 실패')
+      }
+
+      const data = await response.json()
+      setProgress(data.progress)
+
+      if (data.status === 'completed') {
+        setProcessingStatus('completed')
+        setMessage(data.message || '워터마킹이 완료되었습니다.')
+
+        // URL 설정
+        const pUrl = data.playback_file
+          ? apiEndpoints.outputs(data.playback_file)
+          : null
+        const mUrl = data.master_file
+          ? apiEndpoints.outputs(data.master_file)
+          : null
+        setPlaybackUrl(pUrl)
+        setMasterUrl(mUrl)
+
+        setLoading(false)
+      } else if (data.status === 'failed') {
+        setProcessingStatus('failed')
+        setMessage(`오류: ${data.error}`)
+        setLoading(false)
+      } else if (data.status === 'running') {
+        // 계속 폴링
+        setTimeout(() => pollTaskStatus(taskId), 2000) // 2초마다 폴링
+      }
+    } catch (error) {
+      console.error('작업 상태 조회 오류:', error)
+      setProcessingStatus('failed')
+      setMessage('작업 상태 조회 중 오류가 발생했습니다.')
+      setLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -94,47 +160,44 @@ export default function WatermarkInsert() {
     setPlaybackUrl(null)
     setMasterUrl(null)
     setLoading(true)
+    setProcessingStatus('processing')
+    setProgress(0)
+
     const formData = new FormData()
     formData.append('video', videoFile)
     if (title) formData.append('title', title)
 
     try {
-      const response = await fetch(apiEndpoints.embed, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await apiUtils.fetchWithAuth(
+        apiEndpoints.embed,
+        {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
         },
-        credentials: 'include',
-        body: formData,
-      })
+        token,
+        refreshToken,
+        refreshAccessToken
+      )
 
       const data = await response.json()
-      if (response.ok) {
-        setMessage(
-          '워터마크가 성공적으로 삽입되었으며, 재생 가능한 파일로 변환되었습니다.'
-        )
-        // Cloudinary URL이 제공되면 그것을 사용, 없으면 로컬 파일 경로로 대체
-        const pUrl = data.playback_url
-          ? data.playback_url
-          : apiEndpoints.outputs(data.playback_file)
-        const mUrl = data.master_url
-          ? data.master_url
-          : apiEndpoints.outputs(data.master_file)
-        setPlaybackUrl(pUrl)
-        setMasterUrl(mUrl)
+
+      if (response.ok && data.task_id) {
+        setTaskId(data.task_id)
+        setMessage('워터마킹 작업이 시작되었습니다.')
+        // 작업 상태 폴링 시작
+        pollTaskStatus(data.task_id)
       } else {
+        setProcessingStatus('failed')
         const errorMessage =
           data.error || data.msg || '알 수 없는 오류가 발생했습니다.'
         setMessage(`오류: ${errorMessage}`)
-        setPlaybackUrl(null)
-        setMasterUrl(null)
+        setLoading(false)
       }
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('An error occurred during fetch:', error)
-      }
+      console.error('업로드 오류:', error)
+      setProcessingStatus('failed')
       setMessage('서버와 통신 중 오류가 발생했습니다.')
-    } finally {
       setLoading(false)
     }
   }
@@ -262,7 +325,7 @@ export default function WatermarkInsert() {
               />
             </div>
 
-            {videoFile && !loading && !playbackUrl && (
+            {videoFile && processingStatus === 'idle' && (
               <div className="text-center pt-4">
                 <button
                   type="submit"
@@ -277,28 +340,70 @@ export default function WatermarkInsert() {
 
         {(loading || message || playbackUrl) && (
           <div className="max-w-3xl mx-auto mt-20 text-center">
-            {loading && (
-              <div className="space-y-4">
+            {processingStatus === 'processing' && (
+              <div className="space-y-6">
                 <LoadingSpinner />
-                <p className="text-lg text-gray-600">
-                  워터마크를 삽입하고 있습니다...
-                </p>
-                <p className="text-sm text-gray-500">
-                  영상 길이에 따라 몇 분 정도 소요될 수 있습니다. 페이지를
-                  벗어나지 마세요.
-                </p>
+                <div className="space-y-4">
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    워터마크 삽입 중...
+                  </h3>
+                  <div className="max-w-md mx-auto">
+                    <ProgressBar progress={progress} />
+                    <p className="mt-2 text-sm text-gray-600">
+                      {progress}% 완료
+                    </p>
+                  </div>
+                  <div className="space-y-2 text-sm text-gray-500">
+                    <p>영상 길이에 따라 처리 시간이 달라집니다.</p>
+                    <p>페이지를 벗어나지 마세요.</p>
+                  </div>
+                </div>
               </div>
             )}
 
-            {message && !loading && (
-              <div
-                className={`p-4 rounded-lg text-sm font-medium ${
-                  message.includes('성공')
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-red-100 text-red-800'
-                }`}
-              >
-                {message}
+            {processingStatus === 'completed' && message && (
+              <div className="space-y-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full">
+                  <svg
+                    className="w-8 h-8 text-green-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+                <div className="p-4 rounded-lg bg-green-100 text-green-800 text-sm font-medium">
+                  {message}
+                </div>
+              </div>
+            )}
+
+            {processingStatus === 'failed' && message && (
+              <div className="space-y-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full">
+                  <svg
+                    className="w-8 h-8 text-red-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </div>
+                <div className="p-4 rounded-lg bg-red-100 text-red-800 text-sm font-medium">
+                  {message}
+                </div>
               </div>
             )}
 
@@ -323,7 +428,7 @@ export default function WatermarkInsert() {
                       download
                       className="w-full flex justify-center items-center py-3 px-4 border border-gray-300 rounded-full shadow-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-300 hover:shadow-md"
                     >
-                      [관리자용] 원본 파일 다운로드 (.mkv)
+                      [관리자용] 원본 파일 다운로드 (.mp4)
                     </a>
                   )}
                 </div>
