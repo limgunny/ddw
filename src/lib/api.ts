@@ -5,12 +5,12 @@ export const API_BASE_URL = (() => {
     return process.env.NEXT_PUBLIC_API_URL
   }
 
-  // 로컬 개발 환경에서는 로컬 서버 사용
+  // 로컬 개발 환경에서는 배포된 서버 사용
   if (
     typeof window !== 'undefined' &&
     window.location.hostname === 'localhost'
   ) {
-    return 'http://localhost:5000'
+    return 'https://ddw-backend.onrender.com'
   }
 
   // 기본값 (배포 환경)

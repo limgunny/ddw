@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { apiEndpoints, apiUtils } from '@/lib/api'
+import { apiEndpoints } from '@/lib/api'
 
 // New SVG Icons
 const UploadIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -99,13 +99,11 @@ export default function WatermarkInsert() {
   // 작업 상태 폴링 함수
   const pollTaskStatus = async (taskId: string) => {
     try {
-      const response = await apiUtils.fetchWithAuth(
-        apiEndpoints.embedStatus(taskId),
-        { method: 'GET' },
-        token,
-        refreshToken,
-        refreshAccessToken
-      )
+      const response = await fetch(apiEndpoints.embedStatus(taskId), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
 
       if (!response.ok) {
         throw new Error('작업 상태 조회 실패')
@@ -168,17 +166,14 @@ export default function WatermarkInsert() {
     if (title) formData.append('title', title)
 
     try {
-      const response = await apiUtils.fetchWithAuth(
-        apiEndpoints.embed,
-        {
-          method: 'POST',
-          credentials: 'include',
-          body: formData,
+      const response = await fetch(apiEndpoints.embed, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-        token,
-        refreshToken,
-        refreshAccessToken
-      )
+        credentials: 'include',
+        body: formData,
+      })
 
       const data = await response.json()
 
